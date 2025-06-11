@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Blog</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+    <style>
+        :root {
+            --background-light: #f7fafc;
+            --text-light: #1a202c;
+            --background-dark: #1a202c;
+            --text-dark: #e2e8f0;
+            --primary-color: #4c51bf;
+            --editor-bg-dark: #2d3748;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .light body {
+            background-color: var(--background-light);
+            color: var(--text-light);
+        }
+        .dark body {
+            background-color: var(--background-dark);
+            color: var(--text-dark);
+        }
+        .dark .bg-white {
+            background-color: var(--editor-bg-dark) !important;
+        }
+        .dark .bg-gray-100 {
+            background-color: #4a5568 !important;
+        }
+        .dark .text-gray-800 {
+            color: var(--text-dark) !important;
+        }
+        .dark .text-gray-600 {
+            color: #a0aec0 !important;
+        }
+        .dark .border-gray-200 {
+            border-color: #4a5568 !important;
+        }
+        .dark .hover\:bg-gray-100:hover {
+            background-color: #4a5568 !important;
+        }
+        .dark #editor-title, .dark #editor-title::placeholder {
+            color: var(--text-dark) !important;
+        }
+
+        /* Editor content styling */
+        .editor-content {
+            color: var(--text-light);
+        }
+        .dark .editor-content {
+            color: var(--text-dark) !important;
+        }
+        .editor-content:focus {
+            outline: none;
+        }
+        .editor-content h1, .editor-content h2, .editor-content h3 { font-weight: bold; margin-top: 0.8em; margin-bottom: 0.4em; }
+        .editor-content h1 { font-size: 2.25em; }
+        .editor-content h2 { font-size: 1.75em; }
+        .editor-content h3 { font-size: 1.5em; }
+        .editor-content p { margin-bottom: 1em; line-height: 1.6; }
+        .editor-content ul { list-style-type: disc; margin-left: 2em; margin-bottom: 1em; }
+        .editor-content ol { list-style-type: decimal; margin-left: 2em; margin-bottom: 1em; }
+        .editor-content a { color: var(--primary-color); text-decoration: underline; }
+        .editor-content b, .editor-content strong { font-weight: bold; }
+        .editor-content i, .editor-content em { font-style: italic; }
+
+        /* AI Panel styling */
+        .ai-panel {
+            transition: transform 0.3s ease-in-out;
+            z-index: 50;
+        }
+        .ai-panel.hidden {
+            transform: translateX(100%);
+        }
+        .dark .ai-panel {
+            color: var(--text-dark);
+        }
+        .ai-btn {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            text-align: left;
+            background-color: #edf2f7;
+            color: #2d3748;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+        .ai-btn:hover {
+            background-color: #e2e8f0;
+        }
+        .dark .ai-btn {
+            background-color: #4a5568;
+            color: var(--text-dark);
+        }
+        .dark .ai-btn:hover {
+            background-color: #718096;
+        }
+        .dark #ai-output {
+            background-color: #1a202c !important;
+            color: var(--text-dark) !important;
+        }
+
+        /* Custom Modal Styling */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-box {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 400px;
+            transform: scale(0.95);
+            transition: transform 0.3s;
+        }
+        .modal-overlay.visible .modal-box {
+            transform: scale(1);
+        }
+        .dark .modal-box {
+            background: var(--editor-bg-dark);
+        }
+
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+
+    <div id="app" class="container mx-auto p-4 md:p-8">
+        <!-- App Header -->
+        <header class="flex justify-between items-center mb-8">
+            <h1 id="home-link" class="text-3xl md:text-4xl font-bold cursor-pointer" style="color: var(--primary-color);">Inkwell AI</h1>
+            <div class="flex items-center space-x-4">
+                <button id="auth-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg"></button>
+                <button id="new-post-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg hidden">New Post</button>
+                <button id="dark-mode-toggle" class="p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800">
+                    <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9 0 0012 21a9.003 9 0 008.354-5.646z" />
+                    </svg>
+                    <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main id="main-content">
+            <!-- Pages will be rendered here -->
+        </main>
+    </div>
+
+    <!-- Templates for different pages -->
+    <template id="login-page">
+        <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-bold mb-6 text-center">Login to Inkwell AI</h2>
+            <div class="mb-4">
+                <label for="username" class="block text-gray-700 text-sm font-bold mb-2">Username:</label>
+                <input type="text" id="username" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600" placeholder="Enter username">
+            </div>
+            <div class="mb-6">
+                <label for="password" class="block text-gray-700 text-sm font-bold mb-2">Password:</label>
+                <input type="text" id="password" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600" placeholder="Enter password">
+            </div>
+            <button id="login-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg w-full">Login</button>
+        </div>
+    </template>
+
+    <template id="home-page">
+        <div>
+            <h2 class="text-2xl font-bold mb-6">Published Posts</h2>
+            <div id="posts-list" class="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+                <!-- Posts will be listed here -->
+            </div>
+        </div>
+    </template>
+
+    <template id="view-post-page">
+        <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-lg">
+            <h1 id="post-title" class="text-4xl font-bold mb-4"></h1>
+            <div id="post-content" class="prose dark:prose-invert max-w-none editor-content"></div>
+            <div class="mt-8 flex justify-end space-x-2">
+                <button id="edit-post-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Edit</button>
+                <button id="delete-post-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Delete</button>
+            </div>
+        </div>
+    </template>
+
+    <template id="editor-page">
+        <div class="max-w-4xl mx-auto">
+            <input id="editor-title" type="text" placeholder="Your Title Here..." class="text-4xl font-bold w-full bg-transparent outline-none mb-4 p-2">
+            
+            <!-- Editor Toolbar -->
+            <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-t-lg border-b border-gray-200 sticky top-0 z-10">
+                <button class="toolbar-btn" data-command="bold"><b>B</b></button>
+                <button class="toolbar-btn" data-command="italic"><i>I</i></button>
+                <button class="toolbar-btn" data-command="formatBlock" data-value="H1">H1</button>
+                <button class="toolbar-btn" data-command="formatBlock" data-value="H2">H2</button>
+                <button class="toolbar-btn" data-command="insertUnorderedList">UL</button>
+                <button class="toolbar-btn" data-command="insertOrderedList">OL</button>
+                <button class="toolbar-btn" id="link-btn">Link</button>
+                <button id="ai-panel-toggle" class="ml-auto bg-purple-500 hover:bg-purple-600 text-white p-2 rounded-lg text-sm">
+                    AI Assistant ✨
+                </button>
+            </div>
+
+            <div id="editor-content" contenteditable="true" class="prose dark:prose-invert max-w-none p-4 bg-white rounded-b-lg shadow-inner editor-content min-h-[400px]">
+                <p>Start writing your masterpiece...</p>
+            </div>
+            
+            <div class="mt-8 flex justify-end space-x-2">
+                <button id="save-draft-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Save Draft</button>
+                <button id="publish-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg">Publish</button>
+            </div>
+
+            <!-- AI Assistant Panel -->
+            <div id="ai-panel" class="ai-panel hidden fixed top-0 right-0 h-full w-80 bg-gray-100 shadow-lg p-4">
+                <button id="close-ai-panel" class="absolute top-2 right-2 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">&times;</button>
+                <h3 class="text-xl font-bold mb-4">AI Assistant</h3>
+                <div class="space-y-4">
+                    <button class="ai-btn" data-ai="summarize">🔍 Summarize</button>
+                    <button class="ai-btn" data-ai="expand">✍️ Expand</button>
+                    <button class="ai-btn" data-ai="continue">💡 Continue Writing</button>
+                    <button class="ai-btn" data-ai="improve">✅ Improve Writing</button>
+                </div>
+                <div id="ai-output" class="mt-4 p-2 bg-white rounded h-48 overflow-y-auto"></div>
+                <!-- New button to insert AI output -->
+                <button id="insert-ai-output-btn" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg w-full">Insert into Blog</button>
+            </div>
+        </div>
+    </template>
+    
+    <!-- Custom Modal Template -->
+    <template id="modal-template">
+        <div class="modal-overlay">
+            <div class="modal-box">
+                <p id="modal-message" class="mb-4 text-lg"></p>
+                <div id="modal-buttons" class="flex justify-end space-x-4">
+                    <!-- Buttons will be injected here -->
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script type="module">
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = {
+                mainContent: document.getElementById('main-content'),
+                posts: [], // Posts will now be fetched from localStorage
+                currentPostId: null,
+                markdownConverter: new showdown.Converter(),
+                
+                // Hardcoded user credentials
+                AUTHORIZED_USERNAME: "riya_gandi",
+                AUTHORIZED_PASSWORD: "ayush_dayo",
+                
+                init() {
+                    this.loadPosts(); // Load posts from localStorage on init
+                    this.setupGlobalEventListeners();
+                    this.initDarkMode();
+                    this.updateAuthUI(); // Update UI based on initial login status
+                    this.router(); // Call router after auth UI is set
+                    window.addEventListener('hashchange', () => this.router());
+                },
+
+                setupGlobalEventListeners() {
+                    document.getElementById('home-link').addEventListener('click', () => this.navigate(''));
+                    document.getElementById('new-post-btn').addEventListener('click', () => this.navigate('editor'));
+                    document.getElementById('dark-mode-toggle').addEventListener('click', () => this.toggleDarkMode());
+                    
+                    // Auth button event listener
+                    document.getElementById('auth-button').addEventListener('click', () => {
+                        if (sessionStorage.getItem('isLoggedIn') === 'true') {
+                            this.logoutUser();
+                        } else {
+                            this.navigate('login');
+                        }
+                    });
+                },
+
+                // Update UI elements based on login status
+                updateAuthUI() {
+                    const authButton = document.getElementById('auth-button');
+                    const newPostBtn = document.getElementById('new-post-btn');
+                    
+                    if (sessionStorage.getItem('isLoggedIn') === 'true') {
+                        authButton.textContent = 'Logout';
+                        newPostBtn.classList.remove('hidden'); // Show new post button
+                    } else {
+                        authButton.textContent = 'Login';
+                        newPostBtn.classList.add('hidden'); // Hide new post button
+                    }
+                },
+
+                // --- Modal Logic ---
+                showModal(message, type = 'alert', onConfirm = null) {
+                    const template = document.getElementById('modal-template').content.cloneNode(true);
+                    const modalOverlay = template.querySelector('.modal-overlay');
+                    modalOverlay.id = 'active-modal';
+                    
+                    modalOverlay.querySelector('#modal-message').textContent = message;
+                    const buttonsContainer = modalOverlay.querySelector('#modal-buttons');
+
+                    const closeModal = () => {
+                        const activeModal = document.getElementById('active-modal');
+                        if (activeModal) {
+                            activeModal.classList.remove('visible');
+                            setTimeout(() => activeModal.remove(), 300);
+                        }
+                    };
+
+                    if (type === 'confirm') {
+                        const confirmBtn = document.createElement('button');
+                        confirmBtn.className = 'bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg';
+                        confirmBtn.textContent = 'Confirm';
+                        confirmBtn.onclick = () => {
+                            if (onConfirm) onConfirm();
+                            closeModal();
+                        };
+                        buttonsContainer.appendChild(confirmBtn);
+                    }
+
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg';
+                    cancelBtn.textContent = type === 'confirm' ? 'Cancel' : 'Close';
+                    cancelBtn.onclick = closeModal;
+                    buttonsContainer.appendChild(cancelBtn);
+
+                    document.body.appendChild(modalOverlay);
+                    setTimeout(() => modalOverlay.classList.add('visible'), 10);
+                },
+                
+                router() {
+                    const hash = window.location.hash.replace('#', '');
+                    const [path, id] = hash.split('/');
+                    this.mainContent.innerHTML = ''; 
+
+                    // Check if logged in for protected routes
+                    const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+                    if (!isLoggedIn && path !== 'login' && path !== '') { // Allow empty hash (home) to redirect to login
+                        this.navigate('login');
+                        return;
+                    }
+                    if (isLoggedIn && (path === 'login' || path === '')) { // If logged in, redirect to home if on login or empty hash
+                        this.navigate('home'); // Redirect to home page
+                        return;
+                    }
+                    if (!isLoggedIn && path === '') { // If not logged in and on empty hash, go to login
+                        this.renderLoginPage();
+                        return;
+                    }
+                    if (isLoggedIn && path === '') { // If logged in and on empty hash, go to home
+                        this.renderHomePage();
+                        return;
+                    }
+                    
+
+                    switch (path) {
+                        case 'login':
+                            this.renderLoginPage();
+                            break;
+                        case 'home': // New explicit home route
+                            this.renderHomePage();
+                            break;
+                        case 'post':
+                            this.currentPostId = id;
+                            this.renderViewPostPage();
+                            break;
+                        case 'editor':
+                            this.currentPostId = id;
+                            this.renderEditorPage();
+                            break;
+                        default:
+                            // Fallback for any invalid hash, typically go to login if not logged in
+                            if (isLoggedIn) {
+                                this.renderHomePage();
+                            } else {
+                                this.renderLoginPage();
+                            }
+                            break;
+                    }
+                    this.updateAuthUI(); // Always update UI after routing
+                },
+
+                navigate(path) {
+                    window.location.hash = path;
+                },
+
+                // --- Authentication Logic ---
+                renderLoginPage() {
+                    const template = document.getElementById('login-page').content.cloneNode(true);
+                    this.mainContent.appendChild(template);
+
+                    document.getElementById('login-btn').addEventListener('click', () => this.loginUser());
+
+                    // Allow pressing Enter to log in
+                    document.getElementById('password').addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            this.loginUser();
+                        }
+                    });
+                },
+
+                loginUser() {
+                    const usernameInput = document.getElementById('username').value;
+                    const passwordInput = document.getElementById('password').value;
+
+                    if (usernameInput === this.AUTHORIZED_USERNAME && passwordInput === this.AUTHORIZED_PASSWORD) {
+                        sessionStorage.setItem('isLoggedIn', 'true');
+                        sessionStorage.setItem('loggedInUser', this.AUTHORIZED_USERNAME); // Store username for authorId
+                        this.showModal('Login successful!', 'alert');
+                        this.navigate('home'); // Redirect to home page
+                    } else {
+                        this.showModal('Invalid username or password.', 'alert');
+                    }
+                },
+
+                logoutUser() {
+                    sessionStorage.removeItem('isLoggedIn');
+                    sessionStorage.removeItem('loggedInUser');
+                    this.showModal('Logged out successfully.', 'alert');
+                    this.navigate('login'); // Redirect to login page
+                },
+
+                // Local Storage Logic
+                savePosts() {
+                    localStorage.setItem('blogPosts', JSON.stringify(this.posts));
+                },
+
+                loadPosts() {
+                    try {
+                        const storedPosts = localStorage.getItem('blogPosts');
+                        this.posts = storedPosts ? JSON.parse(storedPosts) : [];
+                        console.log("Posts loaded from localStorage:", this.posts.length);
+                    } catch (e) {
+                        console.error("Error loading posts from localStorage:", e);
+                        this.posts = [];
+                    }
+                },
+
+                // Home Page Logic - Now uses localStorage
+                renderHomePage() {
+                    const template = document.getElementById('home-page').content.cloneNode(true);
+                    this.mainContent.appendChild(template);
+                    const postsList = document.getElementById('posts-list');
+                    postsList.innerHTML = ''; // Clear content
+
+                    const publishedPosts = this.posts.filter(p => p.status === 'published').sort((a,b) => (b.publishedAt || 0) - (a.publishedAt || 0));
+                    
+                    if (publishedPosts.length === 0) {
+                        postsList.innerHTML = '<p class="text-center text-gray-500">No posts published yet. Write one!</p>';
+                        return;
+                    }
+
+                    publishedPosts.forEach(post => {
+                        const postElement = document.createElement('div');
+                        postElement.className = 'bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow cursor-pointer';
+                        postElement.dataset.id = post.id;
+                        
+                        const contentPreview = this.markdownConverter.makeHtml(post.content).replace(/<[^>]*>/g, '').substring(0, 100);
+
+                        postElement.innerHTML = `
+                            <h3 class="text-xl font-bold mb-2">${post.title}</h3>
+                            <p class="text-gray-600 mb-4">${contentPreview}...</p>
+                            <span class="font-semibold" style="color: var(--primary-color);">Read More &rarr;</span>
+                            <p class="text-gray-500 text-sm mt-2">By: ${post.authorId || 'Unknown'}</p>
+                        `;
+                        postElement.addEventListener('click', () => this.navigate(`post/${post.id}`));
+                        postsList.appendChild(postElement);
+                    });
+                },
+
+                // View Post Page Logic - Now uses localStorage
+                renderViewPostPage() {
+                    const post = this.posts.find(p => p.id === this.currentPostId);
+                    
+                    if (!post) {
+                        this.showModal('Post not found.', 'alert');
+                        this.navigate('home'); // Redirect to home after viewing
+                        return;
+                    }
+
+                    const template = document.getElementById('view-post-page').content.cloneNode(true);
+                    this.mainContent.appendChild(template);
+                    
+                    document.getElementById('post-title').textContent = post.title;
+                    document.getElementById('post-content').innerHTML = this.markdownConverter.makeHtml(post.content);
+
+                    // Show edit/delete buttons only if the current session user is the author
+                    const loggedInUser = sessionStorage.getItem('loggedInUser');
+                    const editPostBtn = document.getElementById('edit-post-btn');
+                    const deletePostBtn = document.getElementById('delete-post-btn');
+
+                    if (loggedInUser === post.authorId) {
+                        editPostBtn.classList.remove('hidden');
+                        deletePostBtn.classList.remove('hidden');
+                        editPostBtn.addEventListener('click', () => this.navigate(`editor/${post.id}`));
+                        deletePostBtn.addEventListener('click', () => {
+                            this.showModal('Are you sure you want to delete this post?', 'confirm', () => {
+                                this.deletePost(post.id);
+                            });
+                        });
+                    } else {
+                        editPostBtn.classList.add('hidden');
+                        deletePostBtn.classList.add('hidden');
+                    }
+                },
+                
+                deletePost(id) {
+                    this.posts = this.posts.filter(p => p.id !== id);
+                    this.savePosts();
+                    this.showModal('Post deleted successfully!', 'alert');
+                    this.navigate('home');
+                },
+
+                // Editor Page Logic - Now uses localStorage
+                renderEditorPage() {
+                    const template = document.getElementById('editor-page').content.cloneNode(true);
+                    this.mainContent.appendChild(template);
+                    
+                    const editorTitle = document.getElementById('editor-title');
+                    const editorContent = document.getElementById('editor-content');
+                    
+                    if (this.currentPostId) { // Editing existing post
+                        const post = this.posts.find(p => p.id === this.currentPostId);
+                        if (post) {
+                            // Ensure only the author can edit
+                            if (sessionStorage.getItem('loggedInUser') === post.authorId) {
+                                editorTitle.value = post.title;
+                                editorContent.innerHTML = this.markdownConverter.makeHtml(post.content);
+                            } else {
+                                this.showModal('You are not authorized to edit this post.', 'alert');
+                                this.navigate('home');
+                                return;
+                            }
+                        } else {
+                            this.showModal('Post not found for editing.', 'alert');
+                            this.navigate('home'); 
+                            return;
+                        }
+                    } else {
+                        // For new posts, clear the editor
+                        editorTitle.value = '';
+                        editorContent.innerHTML = '<p>Start writing your masterpiece...</p>';
+                    }
+
+                    this.setupEditorToolbar();
+                    this.setupAIAssistant();
+                    
+                    document.getElementById('save-draft-btn').addEventListener('click', () => this.savePost('draft'));
+                    document.getElementById('publish-btn').addEventListener('click', () => this.savePost('published'));
+                },
+                
+                savePost(status) {
+                    const title = document.getElementById('editor-title').value.trim();
+                    const contentHtml = document.getElementById('editor-content').innerHTML;
+                    const contentMarkdown = this.markdownConverter.makeMarkdown(contentHtml);
+                    const loggedInUser = sessionStorage.getItem('loggedInUser');
+
+                    if (!loggedInUser) {
+                        this.showModal('You must be logged in to save posts.', 'alert');
+                        this.navigate('login');
+                        return;
+                    }
+
+                    if (!title || !contentMarkdown || contentMarkdown.trim() === '<p>Start writing your masterpiece...</p>' || contentMarkdown.trim() === '') {
+                        this.showModal('Title and content cannot be empty.', 'alert');
+                        return;
+                    }
+
+                    if (this.currentPostId) { // Editing existing post
+                        const postIndex = this.posts.findIndex(p => p.id === this.currentPostId);
+                        if (postIndex > -1) {
+                            // Only allow author to update their own post
+                            if (this.posts[postIndex].authorId !== loggedInUser) {
+                                this.showModal('You are not authorized to update this post.', 'alert');
+                                this.navigate('home');
+                                return;
+                            }
+
+                            this.posts[postIndex].title = title;
+                            this.posts[postIndex].content = contentMarkdown;
+                            this.posts[postIndex].status = status;
+                            this.posts[postIndex].updatedAt = Date.now();
+                            if (status === 'published' && !this.posts[postIndex].publishedAt) {
+                                this.posts[postIndex].publishedAt = Date.now();
+                            }
+                            this.showModal(`Post "${title}" ${status} successfully!`, 'alert');
+                        }
+                    } else { // Creating new post
+                        const newPost = {
+                            id: crypto.randomUUID(), // Generate a unique ID for the new post
+                            title: title,
+                            content: contentMarkdown,
+                            status: status,
+                            authorId: loggedInUser, // Assign the logged-in user as author
+                            createdAt: Date.now(),
+                            updatedAt: Date.now(),
+                            publishedAt: status === 'published' ? Date.now() : null
+                        };
+                        this.posts.push(newPost);
+                        this.currentPostId = newPost.id;
+                        this.showModal(`New post "${title}" ${status} successfully!`, 'alert');
+                    }
+                    this.savePosts(); // Save all posts to localStorage
+                    this.navigate(`post/${this.currentPostId}`);
+                },
+
+                setupEditorToolbar() {
+                    document.querySelectorAll('.toolbar-btn').forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            const command = e.currentTarget.dataset.command;
+                            const value = e.currentTarget.dataset.value || null;
+                            document.execCommand(command, false, value);
+                        });
+                    });
+                    document.getElementById('link-btn').addEventListener('click', () => {
+                        const url = prompt('Enter the link URL:');
+                        if (url) document.execCommand('createLink', false, url);
+                    });
+                },
+                
+                // AI Assistant Logic (Still uses mock responses for now, real integration will follow)
+                setupAIAssistant() {
+                    const aiPanel = document.getElementById('ai-panel');
+                    document.getElementById('ai-panel-toggle').addEventListener('click', () => aiPanel.classList.remove('hidden'));
+                    document.getElementById('close-ai-panel').addEventListener('click', () => aiPanel.classList.add('hidden'));
+
+                    document.querySelectorAll('.ai-btn').forEach(button => {
+                        button.addEventListener('click', e => {
+                            const action = e.currentTarget.dataset.ai;
+                            this.handleAIAction(action);
+                        });
+                    });
+
+                    // Add event listener for the new "Insert into Blog" button
+                    document.getElementById('insert-ai-output-btn').addEventListener('click', () => {
+                        const aiOutputText = document.getElementById('ai-output').textContent;
+                        if (aiOutputText && aiOutputText.trim() !== 'AI is thinking...' && aiOutputText.trim() !== '') {
+                            const editorContent = document.getElementById('editor-content');
+                            // Ensure editor content is focused and editable
+                            editorContent.focus();
+                            // Insert the AI output at the current cursor position
+                            document.execCommand('insertHTML', false, `\n\n${aiOutputText}\n\n`);
+                            this.showModal('AI content inserted into your blog post!', 'alert');
+                            // Optionally clear the AI output panel after insertion
+                            document.getElementById('ai-output').textContent = ''; 
+                        } else {
+                            this.showModal('No AI content to insert. Please generate some first.', 'alert');
+                        }
+                    });
+                },
+
+                handleAIAction(action) {
+                    const selection = window.getSelection();
+                    let text = selection.toString().trim();
+                    if (!text) {
+                        text = document.getElementById('editor-content').innerText;
+                    }
+
+                    const aiOutput = document.getElementById('ai-output');
+                    aiOutput.innerHTML = `<p class="italic text-gray-500 dark:text-gray-400">AI is thinking...</p>`;
+                    
+                    // Mock AI API call (placeholder for Gemini API integration)
+                    setTimeout(() => {
+                        let result = '';
+                        switch (action) {
+                            case 'summarize':
+                                result = `This is a concise summary of the provided text, highlighting the key points effectively. The AI has determined the main ideas and condensed them.`;
+                                break;
+                            case 'expand':
+                                result = `${text} Furthermore, this expansion delves deeper into the topic, providing additional context, examples, and elaborate details to flesh out the original idea into a more comprehensive piece.`;
+                                break;
+                            case 'continue':
+                                result = `${text} and so, the story continues with a new development that takes the narrative in an unexpected direction, captivating the reader's attention.`;
+                                break;
+                            case 'improve':
+                                result = `The original text has been refined for better clarity, flow, and grammatical accuracy. This version is more polished and professional.`;
+                                break;
+                        }
+                        aiOutput.textContent = result;
+                    }, 1000);
+                },
+                
+                // Dark Mode Logic
+                initDarkMode() {
+                    if (localStorage.getItem('darkMode') === 'true' || 
+                       (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && localStorage.getItem('darkMode') === null)) {
+                        this.setDarkMode(true);
+                    } else {
+                        this.setDarkMode(false);
+                    }
+                },
+                setDarkMode(isDark) {
+                    document.documentElement.classList.toggle('dark', isDark);
+                    document.getElementById('moon-icon').classList.toggle('hidden', isDark);
+                    document.getElementById('sun-icon').classList.toggle('hidden', !isDark);
+                    this.updateThemeColors();
+                },
+                toggleDarkMode() {
+                    const isDarkMode = !document.documentElement.classList.contains('dark');
+                    localStorage.setItem('darkMode', String(isDarkMode));
+                    this.setDarkMode(isDarkMode);
+                },
+                updateThemeColors() {
+                    const isDarkMode = document.documentElement.classList.contains('dark');
+                    const root = document.querySelector(':root');
+                    const primaryColor = isDarkMode ? '#667eea' : '#4c51bf';
+                    root.style.setProperty('--primary-color', primaryColor);
+                }
+            };
+
+            app.init();
+        });
+    </script>
+</body>
+</html>
